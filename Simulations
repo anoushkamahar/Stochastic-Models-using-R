@@ -1,0 +1,90 @@
+rm(list=ls())
+
+Demand <- c(100,150,200,250,300)
+Prob <- c(0.3,0.2,0.3,0.15,0.05)
+
+(ED <- sum(Demand*Prob))
+#Expected Demand is 172.5
+variance <- sum((Demand-ED)^2*(Prob))
+(sd <- (variance)^0.5)
+#Standard Deviation is 60.15605
+
+# Inputs
+variable_cost<-8.20   # variable cost of calendar
+price<-12          # Price at which calendar is sold
+refund<-3.25          # The refund for unsold textbooks
+
+# Decision Variable
+printed<-175
+#ordering the amount of calenders
+
+
+nrep<-10000
+# Model
+demand<-sample(c(100,150,200,250,300),nrep,replace=TRUE,prob = c(0.3,0.2,0.3,0.15,0.05))
+total_copies<-rep(printed,nrep)
+
+unsold_copies<-c()
+for (i in 1:nrep){
+  unsold_copies[i]=max(total_copies[i]-demand[i],0)
+}
+
+refund_eligible<-c()
+for (i in 1:nrep){
+  refund_eligible[i]=ifelse(unsold_copies[i]==0,0,unsold_copies[i])
+}
+refund_revenue<-refund_eligible*refund
+
+total_revenue<-c()
+for (i in 1:nrep){
+  total_revenue[i]=min(total_copies[i],demand[i])*price
+}
+
+total_cost<-printed*variable_cost
+profit<-total_revenue+refund_revenue-total_cost
+
+(expected_profits<-mean(profit))
+(sd_profits<-sd(profit))
+
+(table(profit)/sum(table(profit)))
+
+
+# Answer
+hist(demand)
+hist(profit)
+print("The most likely profit value is 665")
+
+library(glue)
+glue("After simulation, ordering {printed} calender yields an 
+     expected profit of {expected_profits} and SD of {sd_profits}")
+
+
+##################Website Problem 
+
+#Part A
+initialscore = 25
+engagement_time <- function(x){
+  Scores = c(x)
+  for (i in 1:x) {
+    if (x == 1) {break}
+    if (x%%2 == 0) {
+      x = x/2
+    } else {x = x*3 + 1}
+    Scores = c(Scores, x)
+  }
+  return(Scores)
+}
+Scores <- engagement_time(initialscore)
+glue("With an engagement score of {initialscore}, a customer would be engaged for {length(Scores)} minutes")
+
+
+#Part B
+nrep = 1000
+mscore = 55
+customers = rpois(nrep,mscore)
+custscores = c()
+for (i in customers) {
+  scores <- length(engagement_time(i))
+  custscores = c(custscores, scores)
+}
+glue("Average time spent on the website is {mean(custscores)} minutes")
