@@ -1,0 +1,136 @@
+rm(list=ls())
+library(forecast)
+library(glue)
+covid <- read.csv("C:\\Users\\anous\\Desktop\\Stochastic\\Covid.csv")
+
+
+
+
+newcases <- ts(covid$new_cases,frequency=365,start=c(2020,3))
+train<-window(newcases, end=c(2021.7475))
+test<-window(newcases,start=c(2021.748))
+
+
+
+
+plot(train, main ="Number of New Covid Cases in the US", ylab = NULL, bty = "l", xlim = c(2020,2022))
+text(x=2021.7, y=5000,"Source: WHO", cex=1)
+
+
+
+
+
+ndiffs(train)
+#1
+#seems that one difference is required for a stationary series. 
+#Since we got 1 difference, the series is non-stationary
+Acf(train,lag.max=100, ci = .99) # Decaying ACF. 
+# Reaches zero at about 70th lag, but goes on to be negative
+Pacf(train,lag.max=100, ci = .99) # Reaches 0 at about 10th lag
+#fluctuates around after the negative dip at about 10th lag
+ 
+
+
+
+
+smodel<-Arima(train,order=c(0,1,0), seasonal=list(order=c(3,1,0),period=7))
+Acf(smodel$residuals)
+Pacf(smodel$residuals) 
+
+
+
+
+
+# Using the Ar(1) model
+(model_ar<-Arima(train,order=c(1,0,0), seasonal=list(order=c(3,1,0),period=7)))
+#AICc=13904.5
+
+#Use the Ma(2) model
+(model_ma<-Arima(train,order=c(0,0,2), seasonal=list(order=c(3,1,0),period=7)))
+#AICc=14038.7
+
+#Use the ArMa(1,2) model
+(model_arma<-Arima(train,order=c(1,0,2), seasonal=list(order=c(3,1,0),period=7)))
+AICC <- 13804.85
+
+model_sarima <- Arima(train,order=c(1,0,2), seasonal=list(order=c(3,1,0),period=7))
+Acf(model_sarima$residuals, lag.max = 100) #Looks like white noise
+Pacf(model_sarima$residuals, lag.max = 100)  #Looks like white noise
+
+glue("All Ar(1), MA(2) and ArMa(1,2) models were used and ArMa(1,2) was chosen
+     as it had the lowest AiCc being {AICC}. Furthermore, the 
+     residuals acf and pacf were essentually white noise, which shows that we
+     modeled all other time dependencies")
+
+
+
+
+
+
+(model_auto <- auto.arima(train))
+autoBIC <- 14168.75
+(model_sarima)
+sarimaBIC <- 13835.78
+glue("I would say that auto_model did worse because it has higher BIC which is 
+     {autoBIC} which is higher than the model_sarima's BIC ({sarimaBIC}).
+     Higher BIC usually means higher complexity and while following
+     parsimony, we should pick the simpler model anyway.")
+
+
+
+
+forecast_sarima <- forecast::forecast(model_sarima)
+(forecast_sarima)
+plot(forecast_sarima, xlim = c(2021.6,2021.8))
+lines(test,col="black", lwd=1)
+
+
+
+acc<-round(accuracy(forecast_sarima,test),2)  
+(acc)
+Accuracy_Models<-data.frame(acc[2,1:5])
+colnames(Accuracy_Models)<-c("S_arima")
+
+
+
+
+set.seed(10)
+Model_NN <- nnetar(train, scale.inputs = TRUE)
+forecast_IN <- forecast::forecast(Model_NN)
+INAcc <- round(accuracy(forecast_IN,test),2) 
+Forecast <- INAcc[1:5]
+Accuracy_Models$NN<-Forecast
+
+
+
+
+
+plot(forecast_IN, xlim = c(2021.6,2021.8))
+lines(test,col="black", lwd=1)
+
+
+
+
+a<-seq(0,1,0.01)
+RMSE <- c()
+
+for (i in 1:length(a)){
+  a=seq(0,1,0.01)
+  ens = a*38428.85+(1-a)*22414.36
+  RMSE = c(RMSE,ens)
+  a[i]= a[i+1]
+}
+
+(min(RMSE))
+#38428.85 (S-Arima) and 22414.36 (NN model) RMSE value taken from Accuracy Models RMSE row
+
+
+FinalAcc <- round(accuracy(forecast_IN,test),2)
+FinalForecast <- FinalAcc[1:5]
+Accuracy_Models$Final_Model<-FinalForecast
+glue("The minimum value from two forecast weighted RMSE is {(min(RMSE))}. 
+     Alpha is equal to 0 at minimum RMSE,
+     which means we completely use Model NN forecasting and omit S_arima since
+     we are only looking at minimizing RMSE. With this criteria, it is
+     recommended that we use Neural Network Model to predict Covid when 
+     we are considering the RMSE")
